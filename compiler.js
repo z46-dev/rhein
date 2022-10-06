@@ -112,7 +112,78 @@ function compile(code, variables = {}, indents = 0, inLabel = false, isTypeStric
         if (chunk.length < 1) {
             continue;
         }
-        if (chunk === "label") {
+        switch (chunk) {
+            case "gpio": // GPIO command
+                break;
+            case "arduino": // Arduino command
+                break;
+            case "label": { // Label command
+                let labelName = code.shift();
+
+                // Check if it's a proper label declaration.
+                if (!labelName?.endsWith(":")) {
+                    throw new Error("Invalid label initialization!");
+                }
+
+                // Remove the colon from the label name.
+                labelName = labelName.slice(0, -1);
+
+                // Get the contents of the label.
+                let labelContents = getUntilNext(code, `label ${labelName};`);
+
+                // If there's no label contents, throw an error.
+                if (labelContents === -1) {
+                    throw new Error(`The contents of the label ${labelName} are invalid. This could be because the label is not closed, or the label is fucked up.`);
+                }
+
+                // Extract the new code without the label, and the code in the label.
+                let [newCode, insideLabel] = labelContents;
+
+                // Replace the new code with the old code, minus the label.
+                code = newCode;
+
+                // Compile the code inside the label.
+                compiledJS += `function ${labelName}() {\n${compile(insideLabel, variables, indents, labelName, isTypeStrict)}\n}\n`;
+
+                // Clean up the remaining code.
+                code = code.join(" ").replace(`label ${labelName}:`).replace(`label ${labelName};`).split(" ");
+            } break;
+            case "return": { // Return command
+                // If we aren't in a label, throw an error.
+                if (!inLabel) {
+                    throw new Error("Cannot return anything outside of a label!");
+                }
+
+                // Cuz Rhein is both typestrict and not typestrict, we need to get the proper type based on the context.
+                let type = isTypeStrict ? code.shift() : code[0];
+
+                // If the type is not valid, throw an error.
+                if (types[type] === undefined) {
+                    throw new Error(`Invalid return type ${type}!`);
+                }
+
+                // Get the value of the return.
+                let returnValue = getUntilNext(code, ";");
+
+                // If the return value is invalid, throw an error.
+                if (returnValue === -1) {
+                    throw new Error("Invalid return value!");
+                }
+
+                // Extract the new code without the return, and the return value.
+                let [newCode, value] = returnValue;
+
+                // Replace the new code with the old code, minus the return.
+                code = newCode;
+
+                // Get the value of the return.
+                let realValue = getValue(value, variables, type);
+
+                // Add the return statement to the compiled JS.
+                compiledJS += `${" ".repeat(indents)}/**\n${" ".repeat(indents + 1)}* @name ${inLabel} return value\n${" ".repeat(indents + 1)}* @type ${types[type].jsType}\n${" ".repeat(indents + 1)}*/\n${" ".repeat(indents)}return ${realValue};\n`;
+            } break;
+        }
+        if (chunk === "robot") {} else if (chunk === "label") {
             let labelName = code.shift();
             if (!labelName.endsWith(":")) {
                 throw new Error("Invalid label statement!");
