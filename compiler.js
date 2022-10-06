@@ -38,6 +38,7 @@ class Variable {
     }
 }
 
+// Get stuff that's in the string until the search
 function getUntilNext(code, search) {
     code = code.join(" ");
     let index = code.indexOf(search);
@@ -48,42 +49,71 @@ function getUntilNext(code, search) {
     return [code.replace(result + search, "").split(" "), result];
 }
 
-
+// Get the actual value of something, possible simlpifying later?
 function getValue(value, variables, typeName) {
+    // Get the type Object
     let type = types[typeName];
+
+    // Split the value
     value = value.split(" ");
+
+    // Start with the real value
     let realValue = value[0];
+
+    // If there are variables with this name, use their value
     if (variables[realValue] !== undefined) {
+
+        // TypeStrict stuff
         if (variables[realValue].type !== typeName) {
             throw new Error(`Cannot operate a(n) ${variables[realValue].type} (${realValue}) to a(n) ${typeName}!`);
         }
+
+        // Apply value
         realValue = variables[realValue].name;
     } else {
+        // Convert to number if needed
         if (type.jsType === "number") {
             realValue = Number(realValue);
         }
+
+        // Check the value and stuff
         if (type.check(realValue) === false) {
             throw new Error(`Value ${realValue} is not of type ${typeName}!`);
         }
     }
+
+    // Do it for the rest
     for (let i = 1; i < value.length; i++) {
+        // Check if it's an operator (it should always be)
         if (operators[value[i]]) {
+            // If it's a variable, use the value of that variable
             if (variables[value[i + 1]] !== undefined) {
+                // TypeStrict stuff
                 if (variables[value[i + 1]].type !== typeName) {
                     throw new Error(`Cannot operate a(n) ${variables[value[i + 1]].type} (${value[i + 1]}) to a(n) ${typeName}!`);
                 }
+
+                // Apply Value
                 value[i + 1] = variables[value[i + 1]].name;
             } else {
+                // Convert for numbers
                 if (type.jsType === "number") {
                     value[i + 1] = Number(value[i + 1]);
                 }
+
+                // TypeStrict check
                 if (type.check(value[i + 1]) === false) {
                     throw new Error(`Value ${value[i + 1]} is not of type ${typeName}!`);
                 }
             }
+
+            // Apply value
             realValue = operators[value[i]](realValue, value[i + 1]);
+            
+            // Skip over the value we just read.
             i++;
         } else {
+            // Throw the error if it's not an operator.
             throw new Error(`Unexpected value [${value[i]}]!`);
         }
     }
