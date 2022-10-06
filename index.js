@@ -1,6 +1,6 @@
 const compile = require("./compiler.js");
 
-/*console.log(compile(`
+console.log(compile(`
 @typeStrict=true;
 int hello = 102 + 5;
 int goodbye = hello + 5;
@@ -9,7 +9,7 @@ label ok:
     int noob = 10 + sexy;
     return int 210983 + noob + 1;
 label ok;
-`));*/
+`));
 
 console.log(compile(`
 @typeStrict=false;

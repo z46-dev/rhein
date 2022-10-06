@@ -155,7 +155,7 @@ function compile(code, variables = {}, indents = 0, inLabel = false, isTypeStric
                 }
 
                 // Cuz Rhein is both typestrict and not typestrict, we need to get the proper type based on the context.
-                let type = isTypeStrict ? code.shift() : code[0];
+                let type = isTypeStrict ? code.shift() : "any";
 
                 // If the type is not valid, throw an error.
                 if (types[type] === undefined) {
@@ -182,50 +182,51 @@ function compile(code, variables = {}, indents = 0, inLabel = false, isTypeStric
                 // Add the return statement to the compiled JS.
                 compiledJS += `${" ".repeat(indents)}/**\n${" ".repeat(indents + 1)}* @name ${inLabel} return value\n${" ".repeat(indents + 1)}* @type ${types[type].jsType}\n${" ".repeat(indents + 1)}*/\n${" ".repeat(indents)}return ${realValue};\n`;
             } break;
-        }
-        if (chunk === "robot") {} else if (chunk === "label") {
-            let labelName = code.shift();
-            if (!labelName.endsWith(":")) {
-                throw new Error("Invalid label statement!");
-            }
-            labelName = labelName.slice(0, -1);
-            let getResult = getUntilNext(code, `label ${labelName};`);
-            if (getResult === -1) {
-                throw new Error(`Cannot find closing label for ${labelName}`);
-            }
-            let [newCode, inLabel] = getResult;
-            code = newCode;
-            compiledJS += `function ${labelName}() {\n${compile(inLabel, variables, indents + 4, labelName, isTypeStrict)}\n}\n`;
-            code = code.join(" ").replace(`label ${labelName}:`).replace(`label ${labelName};`).split(" ");
-        } else if (chunk === "return") {
-            if (!inLabel) {
-                throw new Error("Invalid return statement");
-            }
-            let type = isTypeStrict ? code.shift() : "any";
-            if (types[type] === undefined) {
-                throw new Error(`Invalid return type [${type}]!`);
-            }
-            let [newCode, value] = getUntilNext(code, ";");
-            code = newCode;
-            let realValue = getValue(value, variables, type);
-            compiledJS += `${" ".repeat(indents)}/**\n${" ".repeat(indents + 1)}* @name ${inLabel} return value\n${" ".repeat(indents + 1)}* @type ${types[type].jsType}\n${" ".repeat(indents + 1)}*/\n${" ".repeat(indents)}return ${realValue};\n`;
-        } else if (types[chunk] !== undefined || !isTypeStrict) {
-            let type = isTypeStrict ? types[chunk] : types.any,
+            default: {
+                if (types[chunk] !== undefined || !isTypeStrict) {
+                    // Set up the proper type
+                let type = isTypeStrict ? types[chunk] : types.any,
                 typeName = isTypeStrict ? chunk : "any";
-            if (!isTypeStrict) {
-                if (chunk.length) {
+            
+            // If we aren't in TypeStrict mode, let's get rid of the type requirement
+            if (isTypeStrict === false) {
+                if (chunk.length > 0) {
                     code.unshift(chunk);
                 }
             }
+
+            // Get the variable name
             let name = code.shift();
+
+            // If the next thing isn't an "=", then we got an issue.
             if (code.shift() !== "=") {
-                throw new Error("Invalid declaration!");
+                throw new Error("Invalid variable declaration!");
             }
-            let [newCode, value] = getUntilNext(code, ";");
+
+            // Get the value of the variable
+            let valueFound = getUntilNext(code, ";");
+
+            // If it doesn't exist, throw an error.
+            if (valueFound === -1) {
+                throw new Error(`Cannot find value of variable ${name}!`);
+            }
+
+            // Extract the new code without the value, and the value.
+            let [newCode, value] = valueFound;
+
+            // Replace the new code with the old code, minus the value.
             code = newCode;
+
+            // Get the value of the value.
             let realValue = getValue(value, variables, typeName);
+
+            // Add stuff to the compiled code.
             compiledJS += `${" ".repeat(indents)}/**\n${" ".repeat(indents + 1)}* @name ${name}\n${" ".repeat(indents + 1)}* @type ${type.jsType}\n${" ".repeat(indents + 1)}*/\n${" ".repeat(indents)}let ${typeName}_${name} = ${realValue};\n`;
+            
+            // Add the new variable to the cache.
             variables[name] = new Variable(name, typeName, realValue);
+                }
+            } break;
         }
     }
     return compiledJS.slice(0, -1).trimEnd();
