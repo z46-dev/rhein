@@ -162,8 +162,9 @@ function compile(code, variables = {}, indents = 0, inLabel = false, isTypeStric
     // Trim up and split apart the code to look nice
     code = code.trim().split("\n").map(r => r.trim()).filter(r => r.length).join(" ").split(" ");
 
-    // Create the basic output
-    let compiledJS = " ".repeat(indents) + "// Rhein@2.0 Compiled code, isTypeStrict: " + isTypeStrict + "!\n";
+    // Create the basic output and other variables
+    let compiledJS = " ".repeat(indents) + "// Rhein@2.0 Compiled code, isTypeStrict: " + isTypeStrict + "!\n",
+        argumentCounter = 0;
 
     // Compile everything
     while (code.length) {
@@ -248,6 +249,41 @@ function compile(code, variables = {}, indents = 0, inLabel = false, isTypeStric
                 compiledJS += `${" ".repeat(indents)}/**\n${" ".repeat(indents + 1)}* @name ${inLabel} return value\n${" ".repeat(indents + 1)}* @type ${types[type].jsType}\n${" ".repeat(indents + 1)}*/\n${" ".repeat(indents)}return ${realValue};\n`;
             }
             break;
+            case "argument": {
+                chunk = code.shift();
+                if (types[chunk] !== undefined || !isTypeStrict) {
+                    // Set up the proper type
+                    let type = isTypeStrict ? types[chunk] : types.any,
+                        typeName = isTypeStrict ? chunk : "any";
+
+                    // If we aren't in TypeStrict mode, let's get rid of the type requirement
+                    if (isTypeStrict === false) {
+                        if (chunk.length > 0) {
+                            code.unshift(chunk);
+                        }
+                    }
+
+                    // Get the variable name
+                    let name = code.shift();
+
+                    // If the next thing isn't an "=", then we got an issue.
+                    if (!name.endsWith(";")) {
+                        throw new Error("Invalid argument declaration!");
+                    }
+
+                    name = name.slice(0, -1);
+
+                    // Add stuff to the compiled code.
+                    compiledJS += `${" ".repeat(indents)}/**\n${" ".repeat(indents + 1)}* @name ${name}\n${" ".repeat(indents + 1)}* @type ${type.jsType}\n${" ".repeat(indents + 1)}*/\n${" ".repeat(indents)}let ${typeName}_${name} = arguments[${argumentCounter ++}];\n`;
+
+                    // Add the new variable to the cache.
+                    variables[name] = new Variable(name, typeName, type.default);
+                    console.log(name, variables[name]);
+
+                    // Clean up the remaining code.
+                    code = code.join(" ").replace(isTypeStrict ? `argument ${typeName} ${name}` : `argument ${name}:`).split(" ");
+                }
+            } break;
             default: {
                 if (types[chunk] !== undefined || !isTypeStrict) {
                     // Set up the proper type
